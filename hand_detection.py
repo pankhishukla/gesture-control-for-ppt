@@ -8,6 +8,10 @@ mp_draw = mp.solutions.drawing_utils #This is used for and marking connections d
 
 capture = cv2.VideoCapture(0)
 
+previous_x = 0 #Stores the previous wrist X position
+
+threshold = 0.08 #As a human hand shakes naturally, a hand should atleast move 0.08 points in order to consider it in the path of swiping
+
 while True:
     ret, frame = capture.read()
 
@@ -28,7 +32,22 @@ while True:
                 mp_hands.HAND_CONNECTIONS #Drawing the connections between the landmarks
             )
 
-    cv2.imshow("Hand Detection", frame) #Basically a window for showing the detected hands
+            wrist = hand_landmarks.landmark[0] #Getting the wrist landmarks
+
+            current_x = wrist.x #Getting the x coordinate
+
+            diff =  current_x - previous_x #Calculating the difference, 
+
+            if diff > threshold:
+                print("RIGHT") #Detecting the right swipe
+            
+            elif diff < -threshold:
+                print("LEFT") #Detecting the left swipe
+
+            
+            previous_x = current_x #Updating the previous location
+        
+    cv2.imshow("Swipe Detection", frame) #Basically a window for showing the detected hands
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
