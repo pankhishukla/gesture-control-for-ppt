@@ -4,15 +4,31 @@ import time
 import pyautogui #This library allows us to trigger by interacting with the keyboard. Bascially it creates a fake keyboard
 
 mp_hands = mp.solutions.hands #This contains a hand detection and a tracking model
-hands = mp_hands.Hands() #Creates an object for hands and it will process each frame and detect hands   
+
+hands = mp_hands.Hands( 
+    static_image_mode = False, #This is us telling the mediapipe that we are not giving you the static images, we are giving you videos, this detects my hand one time and then in future it is faster to track with smoother tracking.
+    #If it was true, it would have detected from the scratch
+
+    max_num_hands = 1, #This just tracks one hand maximum, this is for faster and creates lesser confusion
+
+    model_complexity = 1, #Mediapipe hasa different models, and this shows the medium model used
+
+    min_detection_confidence = 0.7, #Mediapipe should be atleast 70% sure that it is showing a hand, if the confidence is lower, it will ignore 
+
+    min_tracking_confidence = 0.7 #This is applied after the hand is detected, tracking means following the hand across the frames
+
+) ##Basically this only tells us where the hand is and where the hand joints are. Creates an object for hands and it will process each frame and detect hands   
 
 mp_draw = mp.solutions.drawing_utils #This is used for and marking connections drawing the landmarks on the hand
 
 capture = cv2.VideoCapture(0)
 
+capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #This improves the camera resolution significantly
+
 # previous_x = 0 #Stores the previous wrist X position
 
-swipe_threshold = 0.20 #As a human hand shakes naturally, a hand should atleast move 0.08 points in order to consider it in the path of swiping
+swipe_threshold = 0.15 #As a human hand shakes naturally, a hand should atleast move 0.015 points in order to consider it in the path of swiping
 
 cooldown = 1.5 #Currently the system prints "right" or "left" many times for 1 single swipe, for this we need a cooling down period between the swipes
 
@@ -64,14 +80,14 @@ while True:
                 if total_movement > swipe_threshold and (current_time - last_swipe_time) > cooldown:
                     print("RIGHT") #Detecting the right swipe
 
-                    pyautogui.press("right") #Pressing the right keyq
+                    pyautogui.press("pagedown") #Pressing the right keyq
                     last_swipe_time = current_time #Updating the last swipe time
                     gesture_active = False
                 
                 elif total_movement < -swipe_threshold and (current_time - last_swipe_time) > cooldown:
                     print("LEFT") #Detecting the left swipe
-
-                    pyautogui.press("left") #Pressing the left key
+ 
+                    pyautogui.press("pageup") #Pressing the left key
                     last_swipe_time = current_time
                     gesture_active = False
                 
