@@ -48,8 +48,8 @@ gesture_active = False
 center_min = 0.4
 center_max = 0.6
 
-start_draw_distance = 0.05 #Creating a stability zone
-stop_draw_distance = 0.09
+start_draw_distance = 0.04 #Creating a stability zone
+stop_draw_distance = 0.12
 
 drawing = False
 
@@ -114,24 +114,16 @@ while True:
             screen_y = int(index_finger.y * screen_height)
 
             # pyautogui.moveTo(screen_x, screen_y, duration = 0.01) #This is to move the mouse to the finger position, duration adds micro smoothening
-
-            #This function is to stop drawing if the cursor gets out of the window
             screen_x = max(1, min(screen_x, screen_width - 1))
             screen_y = max(1, min(screen_y, screen_height - 1))
 
-            # pyautogui.moveTo(screen_x, screen_y)
+            pyautogui.moveTo(screen_x, screen_y)
 
-            if drawing:
-                pyautogui.dragTo(screen_x, screen_y, duration=0)
-            else:
-                pyautogui.moveTo(screen_x, screen_y)
-
+            
             distance = math.hypot( 
                 index_finger.x - thumb.x,
                 index_finger.y - thumb.y
             ) #This calculating the distance between the index finger and the thumb
-
-            print(distance)
 
             # if distance < start_draw_distance: #If the distance between the fingers is too close, it will start drawing
             #     if drawing == False:
@@ -143,7 +135,7 @@ while True:
             #     if drawing == True:
             #         pyautogui.mouseUp()
             #         drawing = False
-            #         print("Stopped Drawing!!")w
+            #         print("Stopped Drawing!!")
 
             if distance < start_draw_distance:
                 if drawing == False:
