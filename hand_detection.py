@@ -8,6 +8,12 @@ import math
 pyautogui.FAILSAFE = False
 pyautogui.PAUSE = 0
 
+pinch_start_time = None
+pinch_activate = False
+
+click_threshold = 0.25
+draw_threshold = 0.30
+
 mp_hands = mp.solutions.hands #This contains a hand detection and a tracking model
 
 hands = mp_hands.Hands( 
