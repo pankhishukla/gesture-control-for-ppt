@@ -1,19 +1,29 @@
 import cv2 #Used to access webcam 
 import mediapipe as mp #Mediapipe is tool for hand detection and tracking
-import time
+import time #Used for timing gestures
 import pyautogui #This library allows us to trigger by interacting with the keyboard. Bascially it creates a fake 
-import math
+import math #For the calculations
 
-#Without this, PyAutoGUI sometimes cancels mouse holds silently.
-pyautogui.FAILSAFE = False
-pyautogui.PAUSE = 0
+#Configuring the system
+pyautogui.FAILSAFE = False #Prevents PyAutoGUI from stopping if the cursor reaches the corner of the screen
+pyautogui.PAUSE = 0 #Removes the delay betweeen the mouse commands
 
+screen_width, screen_height = pyautogui.size() #Screen size is required too map the finger position to the cursor position
+
+pinch_threshold = 0.05 #This is the distance between the thumb and the index finger
+click_threshold = 0.25 #This is quick pinching -> clicks
+drag_threshold = 0.30 #This is longer pinching -> drags
+
+#Initializing the variables
 pinch_start_time = None
-pinch_activate = False
+pinch_active = False
+dragging = False
 
-click_threshold = 0.25
-draw_threshold = 0.30
+#For cursor smoothening
+prev_x = 0
+prev_y = 0
 
+#Hand detection using Mediapipe
 mp_hands = mp.solutions.hands #This contains a hand detection and a tracking model
 
 hands = mp_hands.Hands( 
@@ -28,152 +38,150 @@ hands = mp_hands.Hands(
 
     min_tracking_confidence = 0.7 #This is applied after the hand is detected, tracking means following the hand across the frames
 
-) ##Basically this only tells us where the hand is and where the hand joints are. Creates an object for hands and it will process each frame and detect hands   
+) #Basically this only tells us where the hand is and where the hand joints are. Creates an object for hands and it will process each frame and detect hands   
 
-mp_draw = mp.solutions.drawing_utils #This is used for and marking connections drawing the landmarks on the hand
+mp_draw = mp.solutions.drawing_utils #This is used for marking landmarks and drawign connections on the hand
 
-capture = cv2.VideoCapture(0)
 
-capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #This improves the camera resolution significantly
+#This is setting up the camera
+capture = cv2.VideoCapture(0) #This is accessing the webcam. 0 means the default camera output and 1,2 would be the external cameras
 
-screen_width, screen_height = pyautogui.size()
-drawing = False
-# previous_x = 0 #Stores the previous wrist X position
+#This improves the camera resolution significantly
+capture.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) #This is setting the width
+capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) #This is setting the height
 
-swipe_threshold = 0.15 #As a human hand shakes naturally, a hand should atleast move 0.015 points in order to consider it in the path of swiping
+#Helper Functions
+def cursor_position(index_finger):
+    #This is converting the normalized finger coodinates (0, 1) to actual screen coordinates
+    screen_x = int(index_finger.x * screen_width)
+    screen_y = int(index_finger.y * screen_height)
+    
+    # pyautogui.moveTo(screen_x, screen_y, duration = 0.01) #This is to move the mouse to the finger position, duration adds micro smoothening
 
-cooldown = 1.5 #Currently the system prints "right" or "left" many times for 1 single swipe, for this we need a cooling down period between the swipes
+    #This function is to stop the cursor if it gets out of the window
+    screen_x = max(1, min(screen_x, screen_width - 1))
+    screen_y = max(1, min(screen_y, screen_height - 1))
 
-last_swipe_time = 0 #Storing the last position 
+    return screen_x, screen_y
 
-#These are the gesture tracking variables
-gesture_start_x = None
-gesture_active = False  
+def calculating_pinch_distance(index_finger, thumb):
+    #This calculates the distance between the index finger and the thumb, and if the distance gets tooo less, it is seen as a click otherwise, it is a drag
+    #Currently this is just the calculation
 
-center_min = 0.4
-center_max = 0.6
+    distance = math.hypot(
+        index_finger.x - thumb.x,
+        index_finger.y - thumb.y 
+    ) #This calculating the distance between the index finger and the thumb
 
-start_draw_distance = 0.05 #Creating a stability zone
-stop_draw_distance = 0.09
+    return distance
 
-drawing = False
+def handling_pinch(distance, screen_x, screen_y):
+    #According to the pinch duration, this function determines if the gesture should trigger a click or a drag
 
-while True:
-    ret, frame = capture.read()
+    global pinch_active, pinch_start_time, dragging
 
-    if not ret:
+    #If the pinch is detected
+    if distance < pinch_threshold: #Fingers are too close, pinch is detected.
+        if not pinch_active: #Indicates that the pinch has jsut started
+            pinch_active = True #Marking that the pinch gesture has begun   
+            pinch_start_time = time.time() #Recording the exact time of pinch
+
+        pinch_duration = time.time() - pinch_start_time #Calculating how long the pinch is held
+
+        if pinch_duration > drag_threshold: #detecting the long pinch gestures
+            if not dragging:
+                pyautogui.mouseDown() #Pressing and holding the left mouse
+                dragging = True #Marking that dragging is active
+                print("Drag Started")
+
+                pyautogui.dragTo(screen_x, screen_y, duration = 0) #Move the mouse while holding button = dragging
+
+        else:
+            if pinch_active: #If the pinch was active previously
+                pinch_duration = time.time() - pinch_start_time #Measuring how long each pinch lasted
+                if pinch_duration < click_threshold: #Short pinch click 
+                    pyautogui.click() #Performing the click
+                    print("Click!")
+
+                if dragging:
+                    pyautogui.mouseUp() #Releasing mouse button
+
+                    dragging = False #Dragging finished
+
+                    print("Drag Stopped!")
+
+            pinch_active = False #Reset pinch state
+
+
+while True: #This continuously produces the camera frames
+    ret, frame = capture.read() #Reading the frames from the webcam, and ret = True if the frame is captured successfully
+
+    if not ret: #Exit the loop if the camera frame failed
         break
 
-    frame = cv2.flip(frame, 1) #Flipping the camera so that the swipes feels natural    
+    frame = cv2.flip(frame, 1) #As we want to make the system feel like a mirror, we flip the camera
 
-    #Open CV uses the BGR colour format but, mediapipe requires RGB colour format, hence converting
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) #As mediapipe requires the rgb color scheme, and openCV uses bgr scheme, we need to convert that first
+    results = hands.process(rgb_frame) #This is using the hand detection model on the frame
 
-    results = hands.process(rgb_frame) #This runs the hand detection model
-
-    #The multi_hand_landmarks contains the hand points
-    if results.multi_hand_landmarks: 
-        for hand_landmarks in results.multi_hand_landmarks: #looping through each of the hand detected
+    if results.multi_hand_landmarks: #If atleast 1 hand is detected
+        for hand_landmarks in results.multi_hand_landmarks: #Iterating through the hand landmarks of the detected hand
+            
+            #drawing the hand skeleton for better visualization
             mp_draw.draw_landmarks(
                 frame,
-                hand_landmarks, #Drawing the landmarks
-                mp_hands.HAND_CONNECTIONS #Drawing the connections between the landmarks
-            )
+                hand_landmarks,
+                mp_hands.HAND_CONNECTIONS
+            ) #drawing the landmarks and the connections too
 
-            wrist = hand_landmarks.landmark[0] #Getting the wrist landmarks
+            #Extract the landmarkss of the index finger and the thumb
+            index_finger = hand_landmarks.landmark[8]
+            thumb = hand_landmarks.landmark[4]
 
-            current_x = wrist.x #Getting the x coordinate
+            screen_x, screen_y = cursor_position(index_finger) #COnverting the finger position to the screen position
+            #Also mapping the finger position to screen pixel position
 
-            # diff =  current_x - previous_x #Calculating the difference, 
-            current_time = time.time()
+            #To preent jittering 
+            smooth_x = prev_x + (screen_x - prev_x) * 0.2
+            smooth_y = prev_y + (screen_y - prev_y) * 0.2
 
-            if center_min < current_x < center_max and gesture_active == False: #Only activating the gesture when the hand is in the center and the gesture is not active 
-                gesture_start_x = current_x
-                gesture_active = True
+            prev_x = smooth_x
+            prev_y = smooth_y
+            pyautogui.moveTo(smooth_x, smooth_y)
 
-            if gesture_active and drawing == False: #Ensures that when the drawing mode means no swiping
-                total_movement = current_x - gesture_start_x
+            if not dragging:
+                pyautogui.moveTo(screen_x, screen_y) #Moving the cursor only when we are not dragging
 
-                if total_movement > swipe_threshold and (current_time - last_swipe_time) > cooldown:
-                    print("RIGHT") #Detecting the right swipe
+                distance = calculating_pinch_distance(index_finger, thumb) #Measuring the distance between the two fingers
+                print(distance) #Just for if required to tune
 
-                    pyautogui.press("pagedown") #Pressing the right keyq
-                    last_swipe_time = current_time #Updating the last swipe time
-                    gesture_active = False
-                
-                elif total_movement < -swipe_threshold and (current_time - last_swipe_time) > cooldown:
-                    print("LEFT") #Detecting the left swipe
- 
-                    pyautogui.press("pageup") #Pressing the left key
-                    last_swipe_time = current_time
-                    gesture_active = False
-                
-                previous_x = current_x #Updating the previous location
+                handling_pinch(distance, screen_x, screen_y) #Deciding whether to click, drag or do nothing and just move the cursor
 
-            index_finger = hand_landmarks.landmark[8] #Getting the index finger point
-
-            thumb = hand_landmarks.landmark[4] #Getting the thumb point
-
-            #This is converting to screen coordinates
-            screen_x = int(index_finger.x * screen_width)
-            screen_y = int(index_finger.y * screen_height)
-
-            # pyautogui.moveTo(screen_x, screen_y, duration = 0.01) #This is to move the mouse to the finger position, duration adds micro smoothening
-
-            #This function is to stop drawing if the cursor gets out of the window
-            screen_x = max(1, min(screen_x, screen_width - 1))
-            screen_y = max(1, min(screen_y, screen_height - 1))
-
-            # pyautogui.moveTo(screen_x, screen_y)
-
-            if drawing:
-                pyautogui.dragTo(screen_x, screen_y, duration=0)
-            else:
-                pyautogui.moveTo(screen_x, screen_y)
-
-            distance = math.hypot( 
-                index_finger.x - thumb.x,
-                index_finger.y - thumb.y
-            ) #This calculating the distance between the index finger and the thumb
-
-            print(distance)
-
-            # if distance < start_draw_distance: #If the distance between the fingers is too close, it will start drawing
-            #     if drawing == False:
-            #         pyautogui.mouseDown()
-            #         drawing = True
-            #         print("Started drawing!!")
-
-            # elif distance > stop_draw_distance: #If the distance between the fingers is far enough, it will stop drawing
-            #     if drawing == True:
-            #         pyautogui.mouseUp()
-            #         drawing = False
-            #         print("Stopped Drawing!!")w
-
-            if distance < start_draw_distance:
-                if drawing == False:
-                    print("MOUSEDOWN TRIGGERED")
-                    pyautogui.mouseDown()
-                    drawing = True
-
-            elif distance > stop_draw_distance:
-                if drawing == True:
-                    print("MOUSEUP TRIGGERED")
+            else: #If the cursor is draggign
+                if dragging:
                     pyautogui.mouseUp()
-                    drawing = False
-    
-    else:  
-        gesture_active = False #Reseting the gesture when the hand disappears, when it is not in the frame
+                    dragging = False
 
-        if drawing:
-            pyautogui.mouseUp()
-            drawing = False #Releasing the mouse when the hand disappears from the frame
+                pinch_active = False #Reseting the pinch state
 
-    cv2.imshow("Gesture Control PPT", frame) #Basically a window for showing the detecqted hands
+            cv2.imshow("Gesture Mouse", frame) #The webcam window
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+            if cv2.waitKey(1) & 0xFF == ord('q'): #Press q to quit
+                break 
 
 capture.release()
 cv2.destroyAllWindows()
+            
+
+
+
+
+
+
+
+
+    
+
+
+
+
