@@ -94,7 +94,7 @@ def handling_pinch(distance, screen_x, screen_y):
                 dragging = True #Marking that dragging is active
                 print("Drag Started")
 
-                pyautogui.dragTo(screen_x, screen_y, duration = 0) #Move the mouse while holding button = dragging
+            pyautogui.dragTo(screen_x, screen_y, duration = 0) #Move the mouse while holding button = dragging
 
         else:
             if pinch_active: #If the pinch was active previously
@@ -147,15 +147,15 @@ while True: #This continuously produces the camera frames
 
             prev_x = smooth_x
             prev_y = smooth_y
-            pyautogui.moveTo(smooth_x, smooth_y)
 
             if not dragging:
                 pyautogui.moveTo(screen_x, screen_y) #Moving the cursor only when we are not dragging
 
                 distance = calculating_pinch_distance(index_finger, thumb) #Measuring the distance between the two fingers
-                print(distance) #Just for if required to tune
+                
+                # print(distance) #Just for if required to tune
 
-                handling_pinch(distance, screen_x, screen_y) #Deciding whether to click, drag or do nothing and just move the cursor
+                handling_pinch(distance, smooth_x, smooth_y) #Deciding whether to click, drag or do nothing and just move the cursor
 
             else: #If the cursor is draggign
                 if dragging:
