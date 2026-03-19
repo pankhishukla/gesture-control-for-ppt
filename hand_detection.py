@@ -113,6 +113,11 @@ def handling_pinch(distance, screen_x, screen_y):
             pinch_active = False #Reset pinch state
 
 
+# def finger_states(hand_landmarks):
+#     fingers = []
+#     #Index
+#     fingers.append(hand_landmarks.landmark[8])
+
 while True: #This continuously produces the camera frames
     ret, frame = capture.read() #Reading the frames from the webcam, and ret = True if the frame is captured successfully
 
@@ -153,7 +158,7 @@ while True: #This continuously produces the camera frames
 
                 distance = calculating_pinch_distance(index_finger, thumb) #Measuring the distance between the two fingers
                 
-                # print(distance) #Just for if required to tune
+                # print(distance) # qJust for if required to tune
 
                 handling_pinch(distance, smooth_x, smooth_y) #Deciding whether to click, drag or do nothing and just move the cursor
 
