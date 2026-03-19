@@ -23,6 +23,9 @@ dragging = False
 prev_x = 0
 prev_y = 0
 
+smoothing = 0.1 #smaller = smoother but slower
+move_threshold = 5 #Ignoring the tiny movements to prevent jittering
+
 #Hand detection using Mediapipe
 mp_hands = mp.solutions.hands #This contains a hand detection and a tracking model
 
@@ -69,8 +72,8 @@ def calculating_pinch_distance(index_finger, thumb):
     #Currently this is just the calculation
 
     distance = math.hypot(
-        index_finger.x - thumb.x,
-        index_finger.y - thumb.y 
+        index_finger.x - thumb.x, #Horizontal difference
+        index_finger.y - thumb.y  #Vertical difference
     ) #This calculating the distance between the index finger and the thumb
 
     return distance
@@ -115,8 +118,24 @@ def handling_pinch(distance, screen_x, screen_y):
 
 # def finger_states(hand_landmarks):
 #     fingers = []
+
+#     #The below code logic shows that the weather the fingertip is above its lower joint or not.
+#     #If the finger tip landmark is greater than the lower joint, it means that the finger is up.
 #     #Index
-#     fingers.append(hand_landmarks.landmark[8])
+#     fingers.append(hand_landmarks.landmark[8].y < hand_landmarks.landmark[6].y) 
+
+#     #Middle   
+#     fingers.append(hand_landmarks.landmark[12].y < hand_landmarks.landmark[10].y)
+
+#     #Ring Finger
+#     fingers.append(hand_landmarks.landmark[16].y < hand_landmarks.landmark[14].y)
+
+#     #Pinky finger
+#     fingers.append(hand_landmarks.landmark[20].y < hand_landmarks.landmark[18].y)
+
+#     return fingers #Final output: [index, middle, ring, pinky]
+
+    
 
 while True: #This continuously produces the camera frames
     ret, frame = capture.read() #Reading the frames from the webcam, and ret = True if the frame is captured successfully
@@ -147,20 +166,28 @@ while True: #This continuously produces the camera frames
             #Also mapping the finger position to screen pixel position
 
             #To preent jittering 
-            smooth_x = prev_x + (screen_x - prev_x) * 0.2
-            smooth_y = prev_y + (screen_y - prev_y) * 0.2
+            # smooth_x = prev_x + (screen_x - prev_x) * 0.2
+            # smooth_y = prev_y + (screen_y - prev_y) * 0.2
 
-            prev_x = smooth_x
-            prev_y = smooth_y
+            dx = abs(screen_x - prev_x)
+            dy = abs(screen_y - prev_y)
 
-            if not dragging:
-                pyautogui.moveTo(screen_x, screen_y) #Moving the cursor only when we are not dragging
+            # Ignore very small movements (removes shaking)
+            if dx > move_threshold or dy > move_threshold:
 
-                distance = calculating_pinch_distance(index_finger, thumb) #Measuring the distance between the two fingers
-                
-                # print(distance) # qJust for if required to tune
+                smooth_x = prev_x + (screen_x - prev_x) * smoothing
+                smooth_y = prev_y + (screen_y - prev_y) * smoothing
 
-                handling_pinch(distance, smooth_x, smooth_y) #Deciding whether to click, drag or do nothing and just move the cursor
+                prev_x = smooth_x
+                prev_y = smooth_y
+
+                if not dragging:
+                    pyautogui.moveTo(screen_x, screen_y) #Moving the cursor only when we are not dragging
+
+                    distance = calculating_pinch_distance(index_finger, thumb) #Measuring the distance between the two fingers
+
+                    # print(distance) # qJust for if required to tune
+                    handling_pinch(distance, smooth_x, smooth_y) #Deciding whether to click, drag or do nothing and just move the cursor
 
             else: #If the cursor is draggign
                 if dragging:
